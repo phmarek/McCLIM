@@ -129,9 +129,6 @@ Forms, SETF the Places to the result of evaluating the Value forms.
 The places are SETF-ed in parallel after all of the Values are
 evaluated."
   (mapc #'check-letf-form forms)
-  (let* (init-let-form save-old-values-setf-form
-         new-values-set-form old-values-set-form
-         update-form)
     (loop for (place new-value) in forms
 	  for (vars vals store-vars writer-form reader-form)
 	    = (multiple-value-list (get-setf-expansion place env))
@@ -140,35 +137,32 @@ evaluated."
 					  (gensym))
 					store-vars)
 	  nconc (mapcar #'list vars vals)
-	    into temp-init-let-form
+	    into init-let-form
 	  nconc (copy-list store-vars)
-	    into temp-init-let-form
+	    into init-let-form
 	  nconc (copy-list old-value-names)
-	    into temp-init-let-form
+	    into init-let-form
 	  nconc `(,(valueify old-value-names) ,reader-form)
-	    into temp-save-old-values-setf-form
+	    into save-old-values-setf-form
 	  nconc `(,(valueify store-vars) ,new-value)
-	    into temp-new-values-set-form
+	    into new-values-set-form
 	  nconc `(,(valueify store-vars) ,(valueify old-value-names))
-	    into temp-old-values-set-form
+	    into old-values-set-form
 	  collect writer-form
-	    into temp-update-form
-	  finally (setq init-let-form temp-init-let-form
-			save-old-values-setf-form temp-save-old-values-setf-form
-			new-values-set-form temp-new-values-set-form
-			old-values-set-form temp-old-values-set-form
-			update-form (cons 'progn temp-update-form)))
-    `(let* ,init-let-form
-       (with-letf-lock ()
-                       (setf ,@save-old-values-setf-form))
-       (unwind-protect
-         (progn 
+	    into update-form
+	  finally 
+      (return
+        `(let* ,init-let-form
            (with-letf-lock ()
-                           (setf ,@new-values-set-form)
-                           ,update-form)
-           (progn ,@body))
-         (setf ,@old-values-set-form)
-         ,update-form))))
+                           (setf ,@save-old-values-setf-form))
+           (unwind-protect
+             (progn 
+               (with-letf-lock ()
+                               (setf ,@new-values-set-form)
+                               ,(cons 'progn update-form))
+               (progn ,@body))
+             (setf ,@old-values-set-form)
+             ,update-form)))))
 
 (defun map-repeated-sequence (result-type n function sequence)
   "Like CL:MAP, but applies \\arg{function} to \\arg{n} consecutive
