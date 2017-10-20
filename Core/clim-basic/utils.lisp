@@ -158,15 +158,17 @@ evaluated."
 			new-values-set-form temp-new-values-set-form
 			old-values-set-form temp-old-values-set-form
 			update-form (cons 'progn temp-update-form)))
-    `(with-letf-lock ()
-       (let* ,init-let-form
-         (setf ,@save-old-values-setf-form)
-         (unwind-protect
-              (progn (setf ,@new-values-set-form)
-                     ,update-form
-                     (progn ,@body))
-           (setf ,@old-values-set-form)
-           ,update-form)))))
+    `(let* ,init-let-form
+       (with-letf-lock ()
+                       (setf ,@save-old-values-setf-form))
+       (unwind-protect
+         (progn 
+           (with-letf-lock ()
+                           (setf ,@new-values-set-form)
+                           ,update-form)
+           (progn ,@body))
+         (setf ,@old-values-set-form)
+         ,update-form))))
 
 (defun map-repeated-sequence (result-type n function sequence)
   "Like CL:MAP, but applies \\arg{function} to \\arg{n} consecutive
